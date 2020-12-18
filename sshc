@@ -49,7 +49,7 @@ buty_op(){
 
 list() {
 	echo  "Group Name IP User Port IdO IdF" | buty_op 
-	sed -n '4,$p' ~/.ssh/config | awk '{print $2}' |awk '{printf("%s ", NF ? $0  : "\n")}END{print "\n"}' | sed 's/^ //' | sort -k 1 -k3 | sed -n '2,$p'| buty_op
+	sed -n '4,$p' ~/.ssh/config | awk '{print $2}' |awk '{printf("%s ", NF ? $0  : "\n")}END{print "\n"}' | sed -e 's/^ //' -e '/^$/d' | sort -k 1 -k3 | buty_op
 }
 
 add(){
