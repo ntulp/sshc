@@ -1,0 +1,124 @@
+#!/bin/bash
+
+usage() {
+
+cat << EOT
+  usage $0 [-hlws]
+  OPTIONS
+    -h show this usage
+    -l list all host on .ssh/config
+    -s search .ssh/config      ex:$0 -s azure,db => egrep -P "(?=.*azure)(?=.*db)"
+    -w add host on .ssh/config ex: $0 -w group,Host,HostName,User,Port,IdentitiesOnly,IdentityFile
+      group    : required
+      Host     : required ,connect name
+      HostName : required ,ip only
+      User     : default is \$USER 
+      Port     : default 22
+      IdentitiesOnly : default no
+      IdentityFile   : default none 
+       example :
+       use password: $0 -w azure,myhost,10.10.10.10,ryan,22,no,none ,  mininum args => $0 -w azure,myhost,10.10.10.10
+       use id_rsa  : $0 -w vps,myvps,100.100.100.100,ubuntu,yes,~/.ssh/id_rsa
+       use pem     : $0 -w aws,ec2,200.200.200.200,admin,yes,~/aws.pem
+EOT
+}
+
+valid_ip(){
+local  ip=$1
+local  stat=1
+
+if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    OIFS=$IFS
+    IFS='.'
+    ip=($ip)
+    IFS=$OIFS
+    [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
+        && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+    stat=$?
+fi
+return $stat
+
+}
+buty_op(){
+	declare input=${1:-$(</dev/stdin)};
+	while  read -r a1 a2 a3 a4 a5 a6 a7
+	do
+		printf "%-5s %-10s %-15s %-6s %-5s %-3s %s\n" $a1 $a2 $a3 $a4 $a5 $a6 $a7
+	done <<< "$input"
+}
+
+list() {
+	echo  "Group Name IP User Port IdO IdF" | buty_op 
+	sed -n '4,$p' ~/.ssh/config | awk '{print $2}' |awk '{printf("%s ", NF ? $0  : "\n")}END{print "\n"}' | sed 's/^ //' | sort -k 1 -k3 | sed -n '2,$p'| buty_op
+}
+
+add(){
+if [ $# -lt 3 ] ;then  
+	echo  "Error: not enough args, mininum need Group,Host,HostName " 
+	usage 
+	exit 1
+fi
+SGP=${1}
+SH=${2}
+if valid_ip ${3}  ;then
+	SHN=${3}
+else
+	echo "wrong ip format!"
+	usage
+	exit 1
+fi
+SU=${4:-$USER}
+SP=${5:-22}
+SIO=${6:-no}
+SIF=${7:-none}
+
+	cat <<EOF>>~/.ssh/config
+
+#Group ${SGP}
+Host ${SH}
+ HostName ${SHN}
+ User ${SU}
+ Port ${SP}
+ IdentitiesOnly ${SIO}
+ IdentityFile ${SIF}
+EOF
+}
+
+while getopts "lw:s:h" option; do
+    case $option in
+        l)
+          list
+          ;;
+        w)
+          args=`echo "$OPTARG"|tr ',' ' '`
+	  add $args
+	  
+          ;;
+        s)
+	reg=""
+          args=`echo "$OPTARG"|tr ',' ' '`
+	  for x in $args 
+	do
+		reg=`echo "$reg(?=.*$x)"`
+	done
+		ans=`list |grep -P "$reg"`
+		if [ `echo "$ans"| wc -l ` -eq 1 ] ; then
+			echo $ans
+			read -p "press any key to connect , or ctrl + C"
+			ssh `echo $ans | awk '{print $2}'`
+		else
+			echo "$ans"
+		fi
+          ;;
+        \?)
+          usage
+          exit 1
+          ;;
+        h)
+          usage
+          exit 0
+          ;;
+    esac
+done
+shift $(($OPTIND - 1))
+
