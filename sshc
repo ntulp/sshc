@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#test vscode
+#test vscodeII
 usage() {
 
 cat << EOT
